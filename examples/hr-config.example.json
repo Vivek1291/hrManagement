@@ -1,0 +1,57 @@
+{
+  "api": {
+    "baseUrl": "https://api.your-company.com/v1",
+    "dataPath": "data",
+    "totalPath": "meta.total"
+  },
+  "routing": { "mode": "browser", "basePath": "/hr", "initialPath": "/dashboard" },
+  "branding": { "title": "Acme HR", "logo": "https://your-company.com/logo.svg", "theme": { "primary": "#0f766e" } },
+  "currency": "INR",
+  "locale": "en-IN",
+  "modules": [
+    { "preset": "dashboard" },
+    {
+      "preset": "employees",
+      "path": "/staff",
+      "group": "People",
+      "endpoints": { "list": "/hr/staff", "get": "/hr/staff/{id}", "create": "/hr/staff", "update": "/hr/staff/{id}", "delete": "/hr/staff/{id}" },
+      "pagination": { "mode": "server", "pageParam": "page", "pageSizeParam": "limit", "pageSize": 20 },
+      "search": { "param": "search" }
+    },
+    { "preset": "leaves", "group": "Time", "roles": ["hr", "manager"] },
+    {
+      "key": "payslips",
+      "label": "My payslips",
+      "path": "/my-payslips",
+      "icon": "file",
+      "group": "Payroll",
+      "endpoints": { "list": "/employees/{user.id}/payslips" },
+      "disableDetail": true,
+      "columns": [
+        { "key": "period", "label": "Month" },
+        { "key": "netPay", "label": "Net pay", "type": "currency" },
+        { "key": "status", "label": "Status", "type": "badge" }
+      ],
+      "actions": [
+        { "key": "pdf", "label": "Download PDF", "endpoint": "/payslips/{id}/pdf", "download": { "filename": "payslip-{period}.pdf" } }
+      ]
+    },
+    {
+      "key": "assets",
+      "label": "Assets",
+      "path": "/assets",
+      "icon": "briefcase",
+      "endpoints": { "list": "/assets", "create": { "path": "/assets", "method": "POST" }, "update": { "path": "/assets/{id}", "method": "PATCH" } },
+      "columns": [
+        { "key": "tag", "label": "Tag" },
+        { "key": "type", "label": "Type" },
+        { "key": "assignedTo.name", "label": "Assigned to" }
+      ],
+      "fields": [
+        { "name": "tag", "label": "Asset tag", "required": true },
+        { "name": "type", "label": "Type", "type": "select", "options": [{ "label": "Laptop", "value": "laptop" }, { "label": "Phone", "value": "phone" }] },
+        { "name": "assignedTo.id", "label": "Assign to", "type": "select", "optionsEndpoint": "/hr/staff" }
+      ]
+    }
+  ]
+}
