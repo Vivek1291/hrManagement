@@ -1,8 +1,13 @@
 import React, { useMemo, useState } from 'react';
-import { getByPath } from '../api/client';
-import { useHR } from '../context';
-import { compareValues, renderCell } from '../utils/format';
+import { getByPath } from '../core/client';
+import { useHR } from '../core/context';
+import { compareValues, renderCell } from '../core/format';
 import type { ColumnConfig } from '../types';
+import { Button } from './Button';
+import { cn } from './cn';
+
+const TH = 'hrm:bg-bg hrm:px-4 hrm:py-3 hrm:text-left hrm:text-xs hrm:font-semibold hrm:tracking-wide hrm:whitespace-nowrap hrm:text-muted hrm:uppercase';
+const TD = 'hrm:border-t hrm:border-border hrm:px-4 hrm:py-3 hrm:align-middle';
 
 export function DataTable({
   columns,
@@ -32,29 +37,31 @@ export function DataTable({
     setSort((s) => (s?.key !== key ? { key, dir: 1 } : s.dir === 1 ? { key, dir: -1 } : null));
 
   return (
-    <div className="hrm-table-wrap">
-      <table className="hrm-table">
+    <div className="hrm:overflow-x-auto">
+      <table className="hrm:w-full">
         <thead>
           <tr>
-            {columns.map((col) => (
-              <th key={col.key} style={{ width: col.width }}>
+            {columns.map((col, ci) => (
+              <th key={`${col.key}-${ci}`} className={TH} style={{ width: col.width }}>
                 {col.sortable ? (
-                  <button type="button" className="hrm-sort" onClick={() => toggleSort(col.key)}>
+                  <button type="button" className="hrm:inline-flex hrm:items-center hrm:gap-1 hrm:uppercase" onClick={() => toggleSort(col.key)}>
                     {col.label}
-                    <span aria-hidden="true">{sort?.key === col.key ? (sort.dir === 1 ? ' ▲' : ' ▼') : ' ↕'}</span>
+                    <span aria-hidden="true" className="hrm:text-[10px]">
+                      {sort?.key === col.key ? (sort.dir === 1 ? '▲' : '▼') : '↕'}
+                    </span>
                   </button>
                 ) : (
                   col.label
                 )}
               </th>
             ))}
-            {rowActions && <th className="hrm-actions-col">{labels.actions}</th>}
+            {rowActions && <th className={cn(TH, 'hrm:w-px hrm:text-right')}>{labels.actions}</th>}
           </tr>
         </thead>
         <tbody>
           {sorted.length === 0 ? (
             <tr>
-              <td colSpan={columns.length + (rowActions ? 1 : 0)} className="hrm-empty">
+              <td colSpan={columns.length + (rowActions ? 1 : 0)} className={cn(TD, 'hrm:p-10 hrm:text-center hrm:text-muted')}>
                 {emptyMessage ?? labels.empty}
               </td>
             </tr>
@@ -62,17 +69,17 @@ export function DataTable({
             sorted.map((row, i) => (
               <tr
                 key={String(getByPath(row, primaryKey) ?? i)}
-                className={onRowClick ? 'hrm-clickable' : undefined}
+                className={cn(onRowClick && 'hrm:cursor-pointer hrm:hover:bg-primary/[0.04]')}
                 onClick={onRowClick ? () => onRowClick(row) : undefined}
               >
-                {columns.map((col) => (
-                  <td key={col.key} data-label={col.label}>
+                {columns.map((col, ci) => (
+                  <td key={`${col.key}-${ci}`} className={TD} data-label={col.label}>
                     {renderCell(col, row, fmt)}
                   </td>
                 ))}
                 {rowActions && (
-                  <td className="hrm-actions-col" onClick={(e) => e.stopPropagation()}>
-                    <div className="hrm-row-actions">{rowActions(row)}</div>
+                  <td className={cn(TD, 'hrm:text-right hrm:whitespace-nowrap')} onClick={(e) => e.stopPropagation()}>
+                    <div className="hrm:inline-flex hrm:items-center hrm:justify-end hrm:gap-1">{rowActions(row)}</div>
                   </td>
                 )}
               </tr>
@@ -99,17 +106,17 @@ export function Pagination({
   const pages = Math.max(1, Math.ceil(total / pageSize));
   if (total <= pageSize && page === 1) return null;
   return (
-    <div className="hrm-pagination">
-      <span className="hrm-muted">
+    <div className="hrm:flex hrm:items-center hrm:justify-between hrm:gap-2 hrm:border-t hrm:border-border hrm:px-4 hrm:py-3">
+      <span className="hrm:text-muted">
         {labels.page} {page} {labels.of} {pages} · {total}
       </span>
-      <div>
-        <button type="button" className="hrm-btn hrm-btn-sm" disabled={page <= 1} onClick={() => onChange(page - 1)}>
+      <div className="hrm:flex hrm:gap-2">
+        <Button size="sm" disabled={page <= 1} onClick={() => onChange(page - 1)}>
           {labels.previous}
-        </button>
-        <button type="button" className="hrm-btn hrm-btn-sm" disabled={page >= pages} onClick={() => onChange(page + 1)}>
+        </Button>
+        <Button size="sm" disabled={page >= pages} onClick={() => onChange(page + 1)}>
           {labels.next}
-        </button>
+        </Button>
       </div>
     </div>
   );

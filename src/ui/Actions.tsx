@@ -1,8 +1,10 @@
 import React, { useState } from 'react';
-import { getByPath, interpolate, normalizeEndpoint } from '../api/client';
-import { useHR } from '../context';
-import { matchesWhen } from '../utils/format';
+import { getByPath, interpolate, normalizeEndpoint } from '../core/client';
+import { useHR } from '../core/context';
+import { matchesWhen } from '../core/format';
+import type { AccessRule } from '../core/permissions';
 import type { ActionConfig } from '../types';
+import { buttonClass } from './Button';
 import { Modal } from './Feedback';
 import { Icon } from './Icon';
 import { initialFormValues, ResourceForm } from './Form';
@@ -18,7 +20,12 @@ function saveBlob(blob: Blob, filename: string) {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
-export function isActionVisible(action: ActionConfig, record: Record<string, any>) {
+export function isActionVisible(
+  action: ActionConfig,
+  record: Record<string, any>,
+  canDo: (rule: AccessRule) => boolean,
+) {
+  if (!canDo({ roles: action.roles, permission: action.permission })) return false;
   if (!matchesWhen(record, action.when)) return false;
   if (action.visible && !action.visible(record)) return false;
   return true;
@@ -26,7 +33,7 @@ export function isActionVisible(action: ActionConfig, record: Record<string, any
 
 /** Hook that executes a configured action against a record. */
 export function useActionRunner(onDone?: () => void) {
-  const { api, baseVars, toast, confirm } = useHR();
+  const { api, baseVars, toast, confirm, notifyError } = useHR();
   const [pending, setPending] = useState<{ action: ActionConfig; record: Record<string, any> } | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
 
@@ -66,7 +73,7 @@ export function useActionRunner(onDone?: () => void) {
       if (action.successMessage) toast(action.successMessage, 'success');
       if (action.reload ?? !isDownload) onDone?.();
     } catch (err) {
-      toast(err instanceof Error ? err.message : String(err), 'error');
+      notifyError(err);
       throw err;
     } finally {
       setBusy(null);
@@ -84,8 +91,9 @@ export function useActionRunner(onDone?: () => void) {
 
   const modal = pending ? (
     <Modal title={pending.action.label} onClose={() => setPending(null)}>
-      {pending.action.confirm && <p>{pending.action.confirm}</p>}
+      {pending.action.confirm && <p className="hrm:mb-4">{pending.action.confirm}</p>}
       <ResourceForm
+        singleColumn
         fields={pending.action.fields!}
         initialValues={initialFormValues(pending.action.fields!)}
         submitLabel={pending.action.label}
@@ -112,11 +120,10 @@ export function ActionButton({
   onClick: () => void;
   compact?: boolean;
 }) {
-  const variant = action.variant && action.variant !== 'default' ? ` hrm-btn-${action.variant}` : '';
   return (
     <button
       type="button"
-      className={`hrm-btn${compact ? ' hrm-btn-sm' : ''}${variant}`}
+      className={buttonClass(action.variant ?? 'default', compact ? 'sm' : 'md')}
       disabled={busy}
       onClick={(e) => {
         e.stopPropagation();

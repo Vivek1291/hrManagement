@@ -1,5 +1,5 @@
-import { getByPath } from '../api/client';
-import { useAsync, useHR } from '../context';
+import { getByPath } from '../core/client';
+import { useAsync, useHR } from '../core/context';
 import type { ModuleConfig } from '../types';
 
 /** Load one record: via `endpoints.get`, or by finding it in the list response as a fallback. */

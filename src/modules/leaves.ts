@@ -1,0 +1,55 @@
+import { defineModule, options } from './helpers';
+
+export const leaves = defineModule({
+  key: 'leaves',
+  label: 'Leave requests',
+  path: '/leaves',
+  icon: 'calendar',
+  group: 'Time & Attendance',
+  titleField: 'employeeName',
+  search: true,
+  endpoints: {
+    list: '/leaves',
+    get: '/leaves/{id}',
+    create: { path: '/leaves', method: 'POST' },
+  },
+  filters: [{ name: 'status', label: 'Status', type: 'select', placeholder: 'All', options: options('pending', 'approved', 'rejected', 'cancelled') }],
+  columns: [
+    { key: 'employeeName', label: 'Employee', sortable: true },
+    { key: 'type', label: 'Type' },
+    { key: 'from', label: 'From', type: 'date', sortable: true },
+    { key: 'to', label: 'To', type: 'date' },
+    { key: 'days', label: 'Days', type: 'number' },
+    { key: 'status', label: 'Status', type: 'badge' },
+  ],
+  detailFields: [
+    { key: 'employeeName', label: 'Employee' },
+    { key: 'type', label: 'Type' },
+    { key: 'from', label: 'From', type: 'date' },
+    { key: 'to', label: 'To', type: 'date' },
+    { key: 'days', label: 'Days', type: 'number' },
+    { key: 'reason', label: 'Reason' },
+    { key: 'status', label: 'Status', type: 'badge' },
+    { key: 'remarks', label: 'Remarks' },
+  ],
+  fields: [
+    { name: 'employeeId', label: 'Employee', type: 'select', required: true, optionsEndpoint: '/employees' },
+    { name: 'type', label: 'Leave type', type: 'select', required: true, optionsEndpoint: '/leave-types', optionLabelKey: 'name', optionValueKey: 'code' },
+    { name: 'from', label: 'From', type: 'date', required: true },
+    { name: 'to', label: 'To', type: 'date', required: true },
+    { name: 'reason', label: 'Reason', type: 'textarea' },
+  ],
+  actions: [
+    { key: 'approve', label: 'Approve', variant: 'primary', icon: 'check', endpoint: { path: '/leaves/{id}/approve', method: 'POST' }, when: { status: 'pending' }, successMessage: 'Leave approved' },
+    {
+      key: 'reject',
+      label: 'Reject',
+      variant: 'danger',
+      icon: 'x',
+      endpoint: { path: '/leaves/{id}/reject', method: 'POST' },
+      when: { status: 'pending' },
+      fields: [{ name: 'remarks', label: 'Reason for rejection', type: 'textarea', required: true }],
+      successMessage: 'Leave rejected',
+    },
+  ],
+});

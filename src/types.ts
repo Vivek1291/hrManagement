@@ -71,7 +71,8 @@ export type ColumnType =
   | 'badge'
   | 'email'
   | 'image'
-  | 'link';
+  | 'link'
+  | 'weekday';
 
 export interface ColumnConfig {
   /** Dot path into the record, e.g. `department.name`. */
@@ -162,6 +163,10 @@ export interface ActionConfig {
   when?: Record<string, unknown | unknown[]>;
   /** Show only when this returns true (JS config only). */
   visible?: (record: Record<string, any>) => boolean;
+  /** Show only to users with one of these roles. */
+  roles?: string[];
+  /** Show only to users holding this permission. */
+  permission?: string;
   successMessage?: string;
   /** Reload the list after success. Default `true` (not for downloads). */
   reload?: boolean;
@@ -207,6 +212,8 @@ export type WidgetConfig =
       color?: BadgeColor;
       /** Navigate to this route when clicked. */
       link?: string;
+      roles?: string[];
+      permission?: string;
     }
   | {
       key: string;
@@ -216,6 +223,8 @@ export type WidgetConfig =
       columns: ColumnConfig[];
       limit?: number;
       link?: string;
+      roles?: string[];
+      permission?: string;
     };
 
 export interface ModuleComponentProps {
@@ -238,8 +247,13 @@ export interface ModuleConfig {
   type?: 'resource' | 'dashboard' | 'custom';
   /** Hide from the sidebar but keep the route. */
   hidden?: boolean;
-  /** Only show if the configured user has one of these roles. */
+  /** Users need one of these roles to open the module (others get a 403 screen). */
   roles?: string[];
+  /**
+   * Permission strings checked against `user.permissions`. `view` guards the whole module;
+   * `create` / `update` / `delete` guard the matching buttons and routes.
+   */
+  permissions?: ModulePermissions;
   /** Optional sidebar group heading. */
   group?: string;
   description?: string;
@@ -283,6 +297,13 @@ export interface ModuleConfig {
  */
 export type ModuleInput = ModuleConfig | (Partial<ModuleConfig> & { preset: string });
 
+export interface ModulePermissions {
+  view?: string;
+  create?: string;
+  update?: string;
+  delete?: string;
+}
+
 export interface ThemeConfig {
   primary?: string;
   primaryContrast?: string;
@@ -303,6 +324,8 @@ export interface UserInfo {
   email?: string;
   avatarUrl?: string;
   roles?: string[];
+  /** Fine-grained permissions, e.g. `['employees.read', 'leaves.approve']`. `'*'` grants everything. */
+  permissions?: string[];
   [key: string]: unknown;
 }
 
@@ -344,6 +367,12 @@ export interface Labels {
   no: string;
   logout: string;
   required: string;
+  forbiddenTitle: string;
+  forbiddenMessage: string;
+  unauthorizedTitle: string;
+  unauthorizedMessage: string;
+  forbiddenAction: string;
+  goHome: string;
 }
 
 export interface HRConfig {
@@ -369,6 +398,25 @@ export interface HRConfig {
   headerExtra?: ReactNode;
   /** Called on every in-app navigation. */
   onNavigate?: (path: string) => void;
+  access?: AccessConfig;
+}
+
+export interface AccessConfig {
+  /**
+   * Show modules the user cannot open in the sidebar (with a lock icon) instead of hiding them.
+   * Opening one shows the 403 screen. Default `false`.
+   */
+  showLockedModules?: boolean;
+  /** Replace the built-in 401/403 screen. */
+  component?: ComponentType<AccessDeniedProps>;
+}
+
+export interface AccessDeniedProps {
+  /** 401 = not signed in / session expired, 403 = signed in but not allowed. */
+  status: 401 | 403;
+  module?: ModuleConfig;
+  /** Server message, when the screen was triggered by an API response. */
+  message?: string;
 }
 
 export interface ApiClient {
@@ -418,4 +466,14 @@ export type IconName =
   | 'bell'
   | 'star'
   | 'eye'
-  | 'award';
+  | 'award'
+  | 'lock'
+  | 'sun'
+  | 'receipt'
+  | 'laptop'
+  | 'megaphone'
+  | 'folder'
+  | 'layers'
+  | 'target'
+  | 'user-plus'
+  | 'tag';

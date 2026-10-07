@@ -1,4 +1,4 @@
-import { createApiClient, extractList, interpolate } from '../src/api/client';
+import { createApiClient, extractList, interpolate } from '../src/core/client';
 
 describe('interpolate', () => {
   it('fills placeholders, including dot paths, and encodes them', () => {
@@ -46,5 +46,15 @@ describe('createApiClient', () => {
     });
     await expect(api.request('/x')).rejects.toMatchObject({ message: 'Nope', status: 403 });
     expect(onError).toHaveBeenCalledTimes(1);
+  });
+});
+
+import { resolveModules } from '../src/core/config';
+import example from '../examples/hr-config.example.json';
+
+describe('examples/hr-config.example.json', () => {
+  it('resolves every module (presets and custom)', () => {
+    const modules = resolveModules(example.modules as any);
+    expect(modules.map((m) => m.path)).toEqual(['/dashboard', '/staff', '/attendance', '/leaves', '/holidays', '/payroll', '/my-payslips', '/inventory']);
   });
 });

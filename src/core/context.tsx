@@ -1,5 +1,6 @@
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
-import type { ApiClient, HRConfig, Labels, TemplateVars } from './types';
+import type { ApiClient, HRConfig, Labels, TemplateVars } from '../types';
+import type { AccessRule } from './permissions';
 
 export const DEFAULT_LABELS: Labels = {
   create: 'Add new',
@@ -27,6 +28,12 @@ export const DEFAULT_LABELS: Labels = {
   no: 'No',
   logout: 'Log out',
   required: 'This field is required',
+  forbiddenTitle: 'Access denied',
+  forbiddenMessage: "You don't have permission to view this page. If you think this is a mistake, contact your administrator.",
+  unauthorizedTitle: 'Not signed in',
+  unauthorizedMessage: 'Your session has expired or you are not signed in. Please sign in again to continue.',
+  forbiddenAction: "You don't have permission to do that.",
+  goHome: 'Go to home',
 };
 
 export type ToastKind = 'success' | 'error' | 'info';
@@ -41,6 +48,10 @@ export interface HRContextValue {
   baseVars: TemplateVars;
   toast: (message: string, kind?: ToastKind) => void;
   confirm: (message: string) => Promise<boolean>;
+  /** Check the configured user against a role/permission rule. */
+  can: (rule?: AccessRule) => boolean;
+  /** Show an error as a toast, with a friendly message for 401/403. */
+  notifyError: (error: unknown) => void;
 }
 
 const HRContext = createContext<HRContextValue | null>(null);

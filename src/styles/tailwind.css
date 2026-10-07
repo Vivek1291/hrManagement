@@ -1,0 +1,27 @@
+/*
+ * hr-management-ui styles — built with Tailwind CSS v4.
+ *
+ * Every utility is prefixed with `hrm:` and Tailwind's global preflight is NOT included, so this
+ * stylesheet never touches the host app: the reset below is scoped to `.hrm-root`.
+ * Theme it by overriding the --hrm-* variables (or pass `branding.theme`).
+ */
+@import 'tailwindcss/theme.css' prefix(hrm);
+@import './base.css';
+@import 'tailwindcss/utilities.css';
+
+@source '../';
+
+@theme inline {
+  --color-primary: var(--hrm-primary);
+  --color-primary-fg: var(--hrm-primary-fg);
+  --color-bg: var(--hrm-bg);
+  --color-surface: var(--hrm-surface);
+  --color-fg: var(--hrm-fg);
+  --color-muted: var(--hrm-muted);
+  --color-border: var(--hrm-border);
+  --color-sidebar: var(--hrm-sidebar);
+  --color-sidebar-fg: var(--hrm-sidebar-fg);
+  --color-danger: var(--hrm-danger);
+  --radius-card: var(--hrm-radius);
+  --font-hrm: var(--hrm-font);
+}

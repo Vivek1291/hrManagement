@@ -1,11 +1,13 @@
 import React from 'react';
-import { getByPath } from '../api/client';
-import { ErrorBox, Spinner } from '../components/Feedback';
-import { initialFormValues, ResourceForm } from '../components/Form';
-import { Icon } from '../components/Icon';
-import { useHR } from '../context';
-import { Link, useRouter } from '../router/Router';
+import { getByPath } from '../core/client';
+import { useHR } from '../core/context';
+import { useRouter } from '../core/router';
 import type { ModuleConfig } from '../types';
+import { cardClass } from '../ui/Button';
+import { cn } from '../ui/cn';
+import { ErrorState, Spinner } from '../ui/Feedback';
+import { initialFormValues, ResourceForm } from '../ui/Form';
+import { Page, PageHeader } from '../ui/Page';
 import { useRecord } from './useRecord';
 
 function FormPage({
@@ -48,16 +50,9 @@ function FormPage({
   };
 
   return (
-    <div className="hrm-page">
-      <Link to={back} className="hrm-back">
-        <Icon name="chevron-left" size={16} /> {labels.back}
-      </Link>
-      <div className="hrm-page-header">
-        <h2>
-          {mode === 'create' ? labels.create : labels.edit} · {module.label}
-        </h2>
-      </div>
-      <div className="hrm-card hrm-card-padded">
+    <Page>
+      <PageHeader backTo={back} title={`${mode === 'create' ? labels.create : labels.edit} · ${module.label}`} />
+      <div className={cn(cardClass, 'hrm:p-5')}>
         <ResourceForm
           fields={fields}
           initialValues={initialFormValues(fields, record)}
@@ -65,7 +60,7 @@ function FormPage({
           onCancel={() => navigate(back)}
         />
       </div>
-    </div>
+    </Page>
   );
 }
 
@@ -76,7 +71,7 @@ export function CreateView({ module }: { module: ModuleConfig }) {
 export function EditView({ module, id }: { module: ModuleConfig; id: string }) {
   const { labels } = useHR();
   const { data, error, loading, reload } = useRecord(module, id);
-  if (error) return <ErrorBox error={error} onRetry={reload} />;
+  if (error) return <ErrorState error={error} onRetry={reload} />;
   if (loading || !data) return <Spinner label={labels.loading} />;
   return <FormPage module={module} mode="edit" record={data} id={id} />;
 }

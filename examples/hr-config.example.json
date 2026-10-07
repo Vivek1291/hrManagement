@@ -5,6 +5,8 @@
     "totalPath": "meta.total"
   },
   "routing": { "mode": "browser", "basePath": "/hr", "initialPath": "/dashboard" },
+  "user": { "id": 42, "name": "Jane Doe", "email": "jane@your-company.com", "roles": ["manager"], "permissions": ["payroll.view"] },
+  "access": { "showLockedModules": true },
   "branding": { "title": "Acme HR", "logo": "https://your-company.com/logo.svg", "theme": { "primary": "#0f766e" } },
   "currency": "INR",
   "locale": "en-IN",
@@ -18,7 +20,10 @@
       "pagination": { "mode": "server", "pageParam": "page", "pageSizeParam": "limit", "pageSize": 20 },
       "search": { "param": "search" }
     },
-    { "preset": "leaves", "group": "Time", "roles": ["hr", "manager"] },
+    { "preset": "attendance" },
+    { "preset": "leaves", "roles": ["hr", "manager"] },
+    { "preset": "holidays" },
+    { "preset": "payroll", "roles": ["hr"], "permissions": { "view": "payroll.view" } },
     {
       "key": "payslips",
       "label": "My payslips",
@@ -37,9 +42,9 @@
       ]
     },
     {
-      "key": "assets",
-      "label": "Assets",
-      "path": "/assets",
+      "key": "inventory",
+      "label": "Inventory",
+      "path": "/inventory",
       "icon": "briefcase",
       "endpoints": { "list": "/assets", "create": { "path": "/assets", "method": "POST" }, "update": { "path": "/assets/{id}", "method": "PATCH" } },
       "columns": [

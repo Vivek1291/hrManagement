@@ -1,7 +1,10 @@
 import React, { useState } from 'react';
-import { getByPath, setByPath } from '../api/client';
-import { useAsync, useHR } from '../context';
+import { getByPath, setByPath } from '../core/client';
+import { useAsync, useHR } from '../core/context';
+import { errorStatus } from '../core/permissions';
 import type { FieldConfig, FieldOption } from '../types';
+import { Button, controlHeight, inputClass } from './Button';
+import { cn } from './cn';
 
 function SelectOptions({ field }: { field: FieldConfig }) {
   const { api, baseVars } = useHR();
@@ -53,7 +56,9 @@ export function FieldInput({
     disabled: field.readOnly && (type === 'select' || type === 'checkbox'),
     placeholder: field.placeholder,
     'aria-invalid': !!error || undefined,
+    className: cn(inputClass, type !== 'textarea' && controlHeight, field.readOnly && 'hrm:bg-bg'),
   };
+  const errorEl = error && <span className="hrm:text-xs hrm:text-danger">{error}</span>;
 
   let input: React.ReactNode;
   if (type === 'textarea') {
@@ -75,14 +80,20 @@ export function FieldInput({
     );
   } else if (type === 'checkbox') {
     return (
-      <label className="hrm-checkbox" htmlFor={id}>
-        <input {...common} type="checkbox" checked={!!value} onChange={(e) => onChange(e.target.checked)} />
-        <span>{field.label}</span>
-        {error && <span className="hrm-field-error">{error}</span>}
+      <label className="hrm:flex hrm:cursor-pointer hrm:items-center hrm:gap-2 hrm:pt-6" htmlFor={id}>
+        <input
+          {...common}
+          className="hrm:size-4 hrm:accent-primary"
+          type="checkbox"
+          checked={!!value}
+          onChange={(e) => onChange(e.target.checked)}
+        />
+        <span className="hrm:font-medium">{field.label}</span>
+        {errorEl}
       </label>
     );
   } else if (type === 'file') {
-    input = <input {...common} type="file" onChange={(e) => onChange(e.target.files?.[0])} />;
+    input = <input {...common} className={cn(inputClass, controlHeight, 'hrm:py-1.5 hrm:file:mr-3 hrm:file:rounded-md hrm:file:bg-bg hrm:file:px-2 hrm:file:py-1 hrm:file:font-medium')} type="file" onChange={(e) => onChange(e.target.files?.[0])} />;
   } else {
     input = (
       <input
@@ -98,14 +109,14 @@ export function FieldInput({
   }
 
   return (
-    <div className="hrm-field-inner">
-      <label htmlFor={id}>
+    <div className="hrm:flex hrm:flex-col hrm:gap-1.5">
+      <label htmlFor={id} className="hrm:text-[13px] hrm:font-medium">
         {field.label}
-        {field.required && <span className="hrm-required"> *</span>}
+        {field.required && <span className="hrm:text-danger"> *</span>}
       </label>
       {input}
-      {field.helpText && !error && <small className="hrm-muted">{field.helpText}</small>}
-      {error && <span className="hrm-field-error">{error}</span>}
+      {field.helpText && !error && <small className="hrm:text-xs hrm:text-muted">{field.helpText}</small>}
+      {errorEl}
     </div>
   );
 }
@@ -142,6 +153,7 @@ export function ResourceForm({
   submitLabel,
   formId,
   hideButtons,
+  singleColumn,
 }: {
   fields: FieldConfig[];
   initialValues: Record<string, any>;
@@ -150,6 +162,7 @@ export function ResourceForm({
   submitLabel?: string;
   formId?: string;
   hideButtons?: boolean;
+  singleColumn?: boolean;
 }) {
   const { labels } = useHR();
   const [values, setValues] = useState(initialValues);
@@ -167,20 +180,24 @@ export function ResourceForm({
     try {
       await onSubmit(values);
     } catch (err) {
-      setSubmitError(err instanceof Error ? err.message : String(err));
+      setSubmitError(errorStatus(err) === 403 ? labels.forbiddenAction : err instanceof Error ? err.message : String(err));
     } finally {
       setSubmitting(false);
     }
   };
 
   return (
-    <form id={formId} className="hrm-form" onSubmit={handleSubmit} noValidate>
-      {submitError && <div className="hrm-error" role="alert">{submitError}</div>}
-      <div className="hrm-form-grid">
+    <form id={formId} className="hrm:flex hrm:flex-col hrm:gap-4" onSubmit={handleSubmit} noValidate>
+      {submitError && (
+        <div role="alert" className="hrm:rounded-lg hrm:border hrm:border-red-200 hrm:bg-red-50 hrm:px-4 hrm:py-3 hrm:text-red-800">
+          {submitError}
+        </div>
+      )}
+      <div className={cn('hrm:grid hrm:grid-cols-1 hrm:gap-4', !singleColumn && 'hrm:md:grid-cols-2')}>
         {fields.map((field) => (
           <div
             key={field.name}
-            className={`hrm-field${field.fullWidth || field.type === 'textarea' ? ' hrm-field-full' : ''}`}
+            className={cn((field.fullWidth || field.type === 'textarea') && 'hrm:md:col-span-2')}
             hidden={field.type === 'hidden'}
           >
             <FieldInput
@@ -193,15 +210,15 @@ export function ResourceForm({
         ))}
       </div>
       {!hideButtons && (
-        <div className="hrm-form-actions">
+        <div className="hrm:flex hrm:justify-end hrm:gap-2">
           {onCancel && (
-            <button type="button" className="hrm-btn" onClick={onCancel} disabled={submitting}>
+            <Button onClick={onCancel} disabled={submitting}>
               {labels.cancel}
-            </button>
+            </Button>
           )}
-          <button type="submit" className="hrm-btn hrm-btn-primary" disabled={submitting}>
+          <Button type="submit" variant="primary" disabled={submitting}>
             {submitting ? labels.loading : submitLabel ?? labels.save}
-          </button>
+          </Button>
         </div>
       )}
     </form>

@@ -1,216 +1,272 @@
-# react-hr-management-ui
+# hr-management-ui
 
-A complete HR management UI for React that you configure entirely, either from JavaScript or from a JSON document served by your API. It includes **employees, departments, attendance, leave requests, payslips, payroll and a dashboard**. You decide which tabs exist, which routes they live on, and which API endpoints each tab calls.
+A complete HR management UI for React, styled with Tailwind CSS. You configure everything, either from JavaScript or from a JSON document your API serves: which modules (tabs) exist, their routes, the API endpoints they call, table columns, forms, actions and who can access what.
 
-- **Any backend.** It works with any REST API. You set paths, methods, query params, the response shape (`dataPath`/`totalPath`) and auth headers per endpoint.
-- **Configure from your API.** Point `configUrl` at your server and it can switch modules on or off per tenant or user without a redeploy.
-- **Built-in presets.** Start from `preset('employees')` and override only what differs.
-- **CRUD with no extra code.** It builds lists, detail pages, create and edit forms, deletes, search, filters, pagination and sorting from config.
-- **Actions.** Approve or reject leave, download payslip PDFs, run payroll, or call any custom endpoint, with optional confirm prompts and input forms.
-- **Related tabs** on detail pages, e.g. `/employees/{id}/payslips`.
-- **Role-based tabs**, theming with CSS variables, i18n labels, a responsive layout, and TypeScript types.
-- **No runtime dependencies.** It only needs `react` and `react-dom` (17+).
+It ships **18 ready-made modules**: dashboard, employees, documents, departments, designations, assets, announcements, attendance, shifts, leave requests, leave types, holidays, payroll runs, payslips, expenses, job openings, candidates and performance reviews. You can also add your own.
+
+- **Works with any backend.** You set the paths, methods, query params, response shape and auth headers for each endpoint.
+- **No backend yet?** Use the built-in mock API (`hr-management-ui/mock`). It implements the documented [API contract](docs/API.md), so you can build the frontend first.
+- **Access control without a login screen.** Sign-in is handled by your app. Users without access see a **401/403 screen**. This happens when they lack a role or permission, or when your API returns 401/403.
+- **Tailwind CSS v4.** You get one precompiled stylesheet, and your app doesn't need Tailwind. Every class is prefixed with `hrm:`, and the reset only applies inside the component, so it won't clash with your app's styles.
+- **CRUD from config.** It builds lists, detail pages with related tabs, forms, search, filters, pagination, sorting, custom actions (approve, reject, download PDF, check-in, run payroll …) and dashboards.
+- **TypeScript**, a responsive layout, theming and i18n labels. The only dependencies are `react` and `react-dom` (17+).
 
 ## Install
 
 ```bash
-npm install react-hr-management-ui
+npm install hr-management-ui
 ```
 
 ## Quick start
 
 ```tsx
-import { HRManagement, preset } from 'react-hr-management-ui';
-import 'react-hr-management-ui/styles.css';
+import { HRManagement, allModules } from 'hr-management-ui';
+import 'hr-management-ui/styles.css';
+
+const config = {
+  api: {
+    baseUrl: 'https://api.acme.com/v1',
+    headers: async () => ({ Authorization: `Bearer ${await getToken()}` }),
+    onError: (err) => err.status === 401 && redirectToYourLogin(),
+  },
+  user: { id: 42, name: 'Jane Doe', roles: ['hr'], permissions: ['*'] },
+  modules: allModules(), // every built-in module
+};
 
 export default function App() {
-  return (
-    <HRManagement
-      config={{
-        api: {
-          baseUrl: 'https://api.acme.com/v1',
-          headers: async () => ({ Authorization: `Bearer ${await getToken()}` }),
-          onError: (err) => err.status === 401 && redirectToLogin(),
-        },
-        user: { id: 42, name: 'Jane Doe', roles: ['hr'] },
-        modules: [
-          preset('dashboard'),
-          preset('employees'),
-          preset('departments'),
-          preset('attendance'),
-          preset('leaves'),
-          preset('payslips'),
-        ],
-      }}
-    />
-  );
+  return <HRManagement config={config} />;
 }
 ```
 
 > Define the config **outside** your component, or wrap it in `useMemo`, so it isn't recreated on every render.
 
-## Loading the configuration from your API
+### Without a backend (frontend-first)
 
 ```tsx
-<HRManagement
-  configUrl="/api/hr-ui-config"
-  configRequestInit={{ credentials: 'include' }}
-  // JS-only bits (functions, components) merged over the JSON, matched by module `key`
-  overrides={{ api: { headers: () => ({ Authorization: `Bearer ${token}` }) } }}
-/>
+import { createMockFetcher } from 'hr-management-ui/mock';
+
+const config = {
+  api: { baseUrl: '/api', fetcher: createMockFetcher() },
+  modules: allModules(),
+};
 ```
 
-The endpoint returns JSON shaped like `HRConfig`. Modules can reference presets:
+`createMockFetcher` accepts `{ delay, forbidden: ['/payroll-runs'], unauthorized: [...], seed }`, so you can also preview the 401/403 screens. When your real API is ready, remove `fetcher`.
+
+### Pick and customise modules
+
+```tsx
+import { allModules, preset } from 'hr-management-ui';
+
+modules: [
+  preset('dashboard'),
+  preset('employees', { path: '/staff', endpoints: { list: '/v2/staff' } }),
+  preset('attendance'),
+  preset('leaves', { roles: ['hr', 'manager'] }),
+  preset('holidays'),
+  preset('payslips', { pagination: { mode: 'server', pageSize: 25 } }),
+]
+// or: allModules(['dashboard', 'employees', 'attendance', 'leaves', 'holidays'])
+```
+
+`preset()` merges `endpoints` key by key, so you only restate what's different.
+
+### Configuration served by your API
+
+```tsx
+<HRManagement configUrl="/api/hr-ui-config" configRequestInit={{ credentials: 'include' }} />
+```
 
 ```json
 {
-  "api": { "baseUrl": "https://api.acme.com/v1", "dataPath": "data", "totalPath": "meta.total" },
+  "api": { "baseUrl": "https://api.acme.com/v1" },
   "routing": { "mode": "browser", "basePath": "/hr" },
-  "branding": { "title": "Acme HR", "theme": { "primary": "#0f766e" } },
+  "user": { "id": 42, "name": "Jane Doe", "roles": ["manager"] },
   "modules": [
     { "preset": "dashboard" },
-    { "preset": "employees", "path": "/staff", "endpoints": { "list": "/hr/staff", "get": "/hr/staff/{id}" } },
-    { "preset": "leaves", "roles": ["hr", "manager"] }
+    { "preset": "employees", "path": "/staff", "endpoints": { "list": "/hr/staff" } },
+    { "preset": "holidays" },
+    { "preset": "payroll", "roles": ["hr"] }
   ]
 }
 ```
 
-See [`examples/hr-config.example.json`](examples/hr-config.example.json) for a full example, including a fully custom module.
+Your server can return a different config for each user, tenant or plan. Use `overrides` to attach things JSON can't hold (functions, components, auth headers). Modules are matched by `key`. See [`examples/hr-config.example.json`](examples/hr-config.example.json).
+
+## Modules
+
+| Preset | Route | What it does |
+| --- | --- | --- |
+| `dashboard` | `/dashboard` | Stat cards and lists: headcount, present today, pending leaves, open jobs, upcoming holidays, announcements |
+| `employees` | `/employees` | Directory with CRUD. Detail tabs: attendance, leave balance, leaves, payslips, documents, assets |
+| `documents` | `/documents` | Upload (file), list and download policies, contracts and ID proofs |
+| `departments` | `/departments` | CRUD + members tab |
+| `designations` | `/designations` | Job titles and levels |
+| `assets` | `/assets` | Inventory with assign/return actions |
+| `announcements` | `/announcements` | Company announcements |
+| `attendance` | `/attendance` | Daily attendance, date/status filters, check-in/check-out, regularization |
+| `shifts` | `/shifts` | Shift timings and grace periods |
+| `leaves` | `/leaves` | Leave requests: apply, approve, reject with reason |
+| `leaveTypes` | `/leave-types` | Leave policy: days per year, paid, carry forward |
+| `holidays` | `/holidays` | Holiday calendar with weekday and year/type filters |
+| `payroll` | `/payroll` | Payroll runs: run → finalize → mark paid, payslips tab |
+| `payslips` | `/payslips` | Payslips with PDF download |
+| `expenses` | `/expenses` | Reimbursement claims with receipt upload, approve/reject/reimburse |
+| `recruitment` | `/recruitment` | Job openings + candidates tab |
+| `candidates` | `/candidates` | Candidate pipeline with stage changes |
+| `performance` | `/performance` | Performance review cycles and ratings |
+
+The endpoints each module calls are listed in **[docs/API.md](docs/API.md)**.
+
+## Access control (401 / 403)
+
+There's no login screen. Your app signs users in and passes who they are:
+
+```ts
+user: { id: 7, name: 'Sam', roles: ['manager'], permissions: ['leaves.view', 'leaves.approve'] }
+```
+
+Access is checked in three places:
+
+1. **Roles on modules and actions.** A user without one of the `roles` doesn't see the tab. Opening its URL shows **403 Access denied**.
+   ```ts
+   preset('payroll', { roles: ['hr', 'admin'] })
+   ```
+2. **Permissions.** `view` guards the module, and `create`/`update`/`delete` guard the matching buttons and routes. Actions and widgets accept a `permission` too. `'*'` grants everything.
+   ```ts
+   import { crudPermissions, preset, presets } from 'hr-management-ui';
+   preset('employees', { permissions: crudPermissions('employees') }) // employees.view / .create / .update / .delete
+   // require leaves.approve / leaves.reject for the built-in leave actions
+   preset('leaves', { actions: presets.leaves.actions!.map((a) => ({ ...a, permission: `leaves.${a.key}` })) })
+   ```
+3. **Your API has the final say.** If an endpoint returns **401** or **403**, the page shows the matching screen, along with the server's `message`. If an action gets a 403, the user sees a toast.
+
+Options:
+
+```ts
+access: {
+  showLockedModules: true,           // show forbidden tabs with a lock icon instead of hiding them
+  component: MyAccessDeniedScreen,   // replace the built-in 401/403 screen ({ status, module, message })
+},
+labels: { forbiddenTitle: 'No access', forbiddenMessage: '…', unauthorizedTitle: '…', unauthorizedMessage: '…' },
+```
+
+## Adding your own module
+
+Every module is plain config. The built-in ones live in [`src/modules/`](src/modules) (one file each) and make good templates:
+
+```ts
+import { defineModule, crudEndpoints, options } from 'hr-management-ui';
+
+export const trainings = defineModule({
+  key: 'trainings',
+  label: 'Trainings',
+  path: '/trainings',
+  icon: 'award',
+  group: 'Talent',
+  search: true,
+  endpoints: crudEndpoints('/trainings'),           // GET/POST /trainings, GET/PUT/DELETE /trainings/{id}
+  columns: [
+    { key: 'title', label: 'Title', sortable: true },
+    { key: 'date', label: 'Date', type: 'date' },
+    { key: 'status', label: 'Status', type: 'badge' },
+  ],
+  fields: [
+    { name: 'title', label: 'Title', required: true },
+    { name: 'date', label: 'Date', type: 'date' },
+    { name: 'status', label: 'Status', type: 'select', options: options('planned', 'done') },
+  ],
+  tabs: [{ key: 'attendees', label: 'Attendees', endpoint: '/trainings/{id}/attendees', columns: [{ key: 'name', label: 'Name' }] }],
+  actions: [{ key: 'enroll', label: 'Enroll', endpoint: { path: '/trainings/{id}/enroll', method: 'POST' }, when: { status: 'planned' } }],
+});
+
+// config.modules: [...allModules(), trainings]
+```
+
+For a fully custom screen, use `type: 'custom'` with a `component`. It receives `{ module, params, navigate, api }`. You can build it from the exported pieces (`Page`, `PageHeader`, `DataTable`, `ResourceForm`, `Button`, `Badge`, `Icon`, `useHR`, `Link`), so it matches the rest of the app.
 
 ## Configuration reference
 
 ### `HRConfig`
 
-| Key | Type | Description |
-| --- | --- | --- |
-| `api` | `ApiConfig` | How to reach your backend (required). |
-| `modules` | `ModuleConfig[]` | The tabs/pages, in sidebar order (required). |
-| `routing` | `{ mode, basePath, initialPath }` | `hash` (default), `browser` or `memory`. `initialPath` is where `/` redirects. |
-| `branding` | `{ title, logo, theme }` | Name, logo URL/element, and theme colors. |
-| `user` | `{ id, name, email, avatarUrl, roles }` | Shown in the header. `roles` filter modules, and the user is available as `{user.*}` in endpoint paths. |
-| `currency` / `locale` | `string` | Defaults for currency/date formatting. |
-| `labels` | `Partial<Labels>` | Override any UI text (i18n). |
-| `onLogout`, `headerExtra`, `onNavigate` | | Hooks into the shell. |
-
-### `ApiConfig`
-
 | Key | Description |
 | --- | --- |
-| `baseUrl` | Prepended to every endpoint path (absolute `https://` paths are left alone). |
-| `headers` | An object, or a sync/async function returning one (for tokens). |
-| `credentials` | Passed to `fetch`, e.g. `'include'` for cookie auth. |
-| `fetcher` | A custom transport with the `fetch` signature (axios adapter, mocks, tests). |
-| `dataPath` / `totalPath` | Default location of the payload and the total count in responses, e.g. `data` and `meta.total`. If omitted, common shapes (`data`, `items`, `results`, `content`, `total`, `totalElements`, `meta.total`, …) are detected automatically. |
-| `onError` | Called for every failed request. |
+| `api` | `{ baseUrl, headers, credentials, fetcher, dataPath, totalPath, onError }` |
+| `modules` | Modules or `{ preset, ...overrides }`, in sidebar order |
+| `routing` | `{ mode: 'hash' \| 'browser' \| 'memory', basePath, initialPath }`. Hash mode is the default and needs no server setup. |
+| `user` | `{ id, name, email, avatarUrl, roles, permissions }`. Shown in the header. Available as `{user.*}` in endpoint paths. |
+| `access` | `{ showLockedModules, component }` |
+| `branding` | `{ title, logo, theme }` |
+| `locale`, `currency` | Formatting defaults (`Intl`) |
+| `labels` | Override any UI text (i18n) |
+| `onLogout`, `headerExtra`, `onNavigate` | Hooks into the shell |
 
 ### Endpoints
 
-An endpoint is a string path or an object:
+A string path, or an object:
 
 ```ts
 {
-  path: '/employees/{id}',        // {placeholders} come from the record, route params and {user.*}
+  path: '/employees/{id}',          // {placeholders} from the record, route and {user.*}
   method: 'PUT',
   query: { orgId: '{user.orgId}' },
   headers: { 'X-Tenant': 'acme' },
-  dataPath: 'result',
-  totalPath: 'paging.total',
-  responseType: 'blob',           // 'json' | 'text' | 'blob'
+  dataPath: 'result', totalPath: 'paging.total',
+  responseType: 'blob',
   transformRequest: (body) => ({ employee: body }),
   transformResponse: (res) => res.payload,
 }
 ```
 
-Bodies are sent as JSON, or as `multipart/form-data` when a field is a file.
-
-### `ModuleConfig`
-
-Each module is one tab or route. Its `type` is `resource` (default), `dashboard` or `custom`.
+### Module options
 
 | Key | Description |
 | --- | --- |
-| `key`, `label`, `path`, `icon`, `group` | Identity, sidebar label, route, icon name, and sidebar group heading. |
-| `roles`, `hidden` | Show only for these roles / hide from the sidebar but keep the route. |
-| `endpoints` | `{ list, get, create, update, delete }`. Only the ones you provide are enabled: no `create` means no "Add new" button. Without `get`, the detail page finds the record in the list response. |
-| `columns` | List columns: `{ key, label, type, sortable, badgeColors, currency, render }`. `type` can be `text`, `number`, `currency`, `date`, `datetime`, `boolean`, `badge`, `email`, `image` or `link`. `key` supports dot paths (`department.name`). |
-| `detailFields` | What the detail page shows (defaults to `columns`). |
-| `fields` | Create/edit form fields: `{ name, label, type, required, options, optionsEndpoint, optionLabelKey, optionValueKey, defaultValue, showIn, validate, ... }`. `type` can be `text`, `email`, `tel`, `number`, `password`, `date`, `datetime-local`, `time`, `textarea`, `select`, `checkbox`, `file` or `hidden`. |
-| `filters` | Fields shown above the list. Their values are sent as query params. |
-| `search` | `true` (client-side) or `{ param: 'q' }` (server-side). |
-| `pagination` | `{ mode: 'client' \| 'server' \| 'none', pageParam, pageSizeParam, pageSize, zeroBased }`. |
-| `actions` | Custom buttons (see below). |
-| `tabs` | Related lists on the detail page: `{ key, label, endpoint, columns, actions }`. |
-| `primaryKey`, `titleField`, `disableDetail` | Record id field (default `id`), detail title field (default `name`), and whether to disable the detail page. |
-| `widgets` | For `type: 'dashboard'`: `stat` cards and `list` widgets. |
-| `component` | For `type: 'custom'`: your own React component, which receives `{ module, params, navigate, api }`. |
-
-Routes created for a resource module at `path: '/employees'`:
-
-| Route | View |
-| --- | --- |
-| `/employees` | list |
-| `/employees/new` | create form (if `endpoints.create`) |
-| `/employees/:id` | detail with related tabs |
-| `/employees/:id/edit` | edit form (if `endpoints.update`) |
-
-### Actions
-
-```ts
-actions: [
-  // Row button, only shown for pending records
-  { key: 'approve', label: 'Approve', endpoint: { path: '/leaves/{id}/approve', method: 'POST' },
-    when: { status: 'pending' }, variant: 'primary', successMessage: 'Approved' },
-
-  // Ask for input first; the values become the request body
-  { key: 'reject', label: 'Reject', endpoint: '/leaves/{id}/reject', variant: 'danger',
-    fields: [{ name: 'remarks', label: 'Reason', type: 'textarea', required: true }] },
-
-  // File download (blob response, or JSON `{ url }` for a signed URL)
-  { key: 'pdf', label: 'Download', endpoint: '/payslips/{id}/pdf', download: { filename: 'payslip-{period}.pdf' } },
-
-  // Toolbar button above the table
-  { key: 'export', label: 'Export CSV', scope: 'toolbar', endpoint: '/employees/export', download: { filename: 'employees.csv' } },
-
-  // Open a URL in a new tab
-  { key: 'profile', label: 'Open in ERP', endpoint: 'https://erp.acme.com/people/{employeeCode}', openInNewTab: true },
-]
-```
-
-Other options are `confirm: 'Are you sure?'`, `icon`, `method`, `reload`, and `visible: (record) => boolean`.
-
-### Presets
-
-`presets` is exported, and `preset(name, overrides)` returns a module merged with your overrides. The `endpoints` object is merged key by key, so you can change one path without restating the rest:
-
-```ts
-preset('employees', { path: '/people', endpoints: { list: '/v2/people' } })
-```
-
-| Preset | Default endpoints |
-| --- | --- |
-| `dashboard` | `GET /employees`, `GET /departments`, `GET /leaves?status=pending`, `GET /leaves` |
-| `employees` | `GET/POST /employees`, `GET/PUT/DELETE /employees/{id}`, tabs: `GET /employees/{id}/payslips`, `GET /employees/{id}/leaves`, `GET /payslips/{id}/download` |
-| `departments` | `GET/POST /departments`, `GET/PUT/DELETE /departments/{id}` |
-| `attendance` | `GET /attendance?date=&status=` |
-| `leaves` | `GET/POST /leaves`, `GET /leaves/{id}`, `POST /leaves/{id}/approve`, `POST /leaves/{id}/reject` |
-| `payslips` | `GET /payslips?month=`, `GET /payslips/{id}`, `GET /payslips/{id}/download`, `POST /payroll/run` |
+| `key`, `label`, `path`, `icon`, `group`, `description` | Identity and placement in the sidebar |
+| `type` | `resource` (default), `dashboard` or `custom` |
+| `roles`, `permissions`, `hidden` | Access control / hide from the sidebar |
+| `endpoints` | `{ list, get, create, update, delete }`. Only the ones you provide are enabled. |
+| `columns`, `detailFields` | `{ key, label, type, sortable, badgeColors, currency, render }`. `type` can be `text`, `number`, `currency`, `date`, `datetime`, `weekday`, `boolean`, `badge`, `email`, `image` or `link`. |
+| `fields` | Form fields. `type` can be `text`, `email`, `tel`, `number`, `password`, `date`, `datetime-local`, `time`, `textarea`, `select`, `checkbox`, `file` or `hidden`. Fields also take `required`, `options`/`optionsEndpoint`, `defaultValue`, `showIn` and `validate`. |
+| `filters`, `search`, `pagination` | List controls (client- or server-side) |
+| `actions` | `{ key, label, endpoint, scope: 'row' \| 'toolbar', when, confirm, fields, download, openInNewTab, roles, permission, variant, icon }` |
+| `tabs` | Related lists on the detail page |
+| `widgets` | Dashboard `stat` / `list` widgets |
+| `component` | Your component for `type: 'custom'` |
 
 ### Theming
 
-Pass `branding.theme` (`primary`, `background`, `surface`, `text`, `muted`, `border`, `sidebar`, `sidebarText`, `radius`, `font`), or override the `--hrm-*` CSS variables on `.hrm-root`.
+```ts
+branding: { title: 'Acme HR', logo: '/logo.svg', theme: { primary: '#0f766e', sidebar: '#0b1220', radius: '0.5rem' } }
+```
 
-### Building your own pages
+The theme keys are `primary`, `primaryContrast`, `background`, `surface`, `text`, `muted`, `border`, `sidebar`, `sidebarText`, `radius` and `font`. You can also override the `--hrm-*` CSS variables on `.hrm-root`.
 
-`useHR()` (gives you `api`, `toast`, `confirm`, `labels`), `useRouter()`, `Link`, `DataTable`, `ResourceForm`, `Icon`, `createApiClient`, `defineHRConfig` and every type are exported, so custom modules look and behave like the built-in ones.
+## Project structure
+
+```
+src/
+  HRManagement.tsx      app shell: loads config, providers, toasts, confirm dialog
+  types.ts              every public config type
+  core/                 API client, router, context, permissions, formatting, config merging
+  layout/               sidebar + header
+  views/                list, detail, form, dashboard, routes (+ 403 handling)
+  ui/                   Tailwind components: Button, Badge, DataTable, Form, Modal, AccessDenied…
+  modules/              one file per HR module (employees.ts, holidays.ts, attendance.ts…)
+  mock/                 in-memory backend (published as hr-management-ui/mock)
+  styles/               Tailwind entry (compiled to dist/styles.css)
+docs/API.md             the REST contract the modules use by default
+examples/               demo app + JSON config example
+```
 
 ## Development
 
 ```bash
 npm install
-npm run dev        # demo app with an in-memory mock API (examples/demo)
+npm run dev        # demo with every module on the mock API (examples/demo)
 npm test           # vitest
 npm run typecheck
-npm run build      # dist/ (ESM + CJS + .d.ts + styles.css)
+npm run build      # dist/: ESM + CJS + .d.ts for "." and "./mock", plus styles.css
 npm publish        # runs typecheck, tests and build first
 ```
 

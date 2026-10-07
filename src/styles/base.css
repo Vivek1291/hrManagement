@@ -1,0 +1,49 @@
+/* Theme defaults and a reset scoped to .hrm-root (Tailwind preflight is intentionally not used). */
+.hrm-root {
+  --hrm-primary: #4f46e5;
+  --hrm-primary-fg: #ffffff;
+  --hrm-bg: #f6f7fb;
+  --hrm-surface: #ffffff;
+  --hrm-fg: #1f2937;
+  --hrm-muted: #6b7280;
+  --hrm-border: #e5e7eb;
+  --hrm-sidebar: #111827;
+  --hrm-sidebar-fg: #d1d5db;
+  --hrm-danger: #dc2626;
+  --hrm-radius: 0.75rem;
+  --hrm-font: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+
+  font-family: var(--hrm-font);
+  color: var(--hrm-fg);
+  background-color: var(--hrm-bg);
+  font-size: 14px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Scoped reset (instead of Tailwind preflight). Same specificity as utilities, which come later and win. */
+.hrm-root :where(*),
+.hrm-root :where(*)::before,
+.hrm-root :where(*)::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  border: 0 solid;
+}
+.hrm-root :where(h1, h2, h3, h4, h5, h6) { font-size: inherit; font-weight: inherit; }
+.hrm-root :where(a) { color: inherit; text-decoration: inherit; }
+.hrm-root :where(ul, ol) { list-style: none; }
+.hrm-root :where(table) { border-collapse: collapse; text-indent: 0; }
+.hrm-root :where(img, svg) { display: block; vertical-align: middle; }
+.hrm-root :where(img) { max-width: 100%; height: auto; }
+.hrm-root :where(button, input, select, textarea) {
+  font: inherit;
+  color: inherit;
+  letter-spacing: inherit;
+  background-color: transparent;
+  border-radius: 0;
+}
+.hrm-root :where(button, [role='button']) { cursor: pointer; }
+.hrm-root :where(button:disabled) { cursor: not-allowed; }
+.hrm-root :where(textarea) { resize: vertical; }
+.hrm-root :where(input::placeholder, textarea::placeholder) { color: var(--hrm-muted); opacity: 0.8; }

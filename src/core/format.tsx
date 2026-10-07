@@ -1,6 +1,7 @@
 import React from 'react';
-import { getByPath } from '../api/client';
+import { getByPath } from './client';
 import type { BadgeColor, ColumnConfig } from '../types';
+import { Badge } from '../ui/Button';
 
 interface FormatCtx {
   locale?: string;
@@ -16,6 +17,24 @@ const AUTO_BADGE: Record<string, BadgeColor> = {
   present: 'green',
   completed: 'green',
   pending: 'yellow',
+  open: 'green',
+  closed: 'gray',
+  published: 'green',
+  scheduled: 'blue',
+  public: 'blue',
+  optional: 'purple',
+  company: 'green',
+  assigned: 'blue',
+  available: 'green',
+  in_repair: 'yellow',
+  retired: 'gray',
+  applied: 'gray',
+  screening: 'blue',
+  interview: 'purple',
+  offer: 'yellow',
+  hired: 'green',
+  submitted: 'blue',
+  reimbursed: 'green',
   draft: 'gray',
   processing: 'blue',
   late: 'yellow',
@@ -54,7 +73,7 @@ export function formatNumber(value: unknown, kind: 'number' | 'currency' | 'perc
 export function renderCell(column: ColumnConfig, record: Record<string, any>, ctx: FormatCtx): React.ReactNode {
   const value = getByPath(record, column.key);
   if (column.render) return column.render(value, record);
-  if (value === null || value === undefined || value === '') return <span className="hrm-muted">—</span>;
+  if (value === null || value === undefined || value === '') return <span className="hrm:text-muted">—</span>;
 
   switch (column.type) {
     case 'number':
@@ -74,22 +93,26 @@ export function renderCell(column: ColumnConfig, record: Record<string, any>, ct
     case 'badge': {
       const key = String(value);
       const color = column.badgeColors?.[key] ?? AUTO_BADGE[key.toLowerCase()] ?? 'gray';
-      return <span className={`hrm-badge hrm-badge-${color}`}>{key.replace(/_/g, ' ')}</span>;
+      return <Badge color={color}>{key.replace(/_/g, ' ')}</Badge>;
+    }
+    case 'weekday': {
+      const d = toDate(value);
+      return d ? d.toLocaleDateString(ctx.locale, { weekday: 'long' }) : String(value);
     }
     case 'email':
       return (
-        <a href={`mailto:${value}`} onClick={(e) => e.stopPropagation()}>
+        <a className="hrm:text-primary hrm:hover:underline" href={`mailto:${value}`} onClick={(e) => e.stopPropagation()}>
           {String(value)}
         </a>
       );
     case 'link':
       return (
-        <a href={String(value)} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()}>
+        <a className="hrm:text-primary hrm:hover:underline" href={String(value)} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()}>
           {String(value)}
         </a>
       );
     case 'image':
-      return <img className="hrm-avatar" src={String(value)} alt="" />;
+      return <img className="hrm:size-8 hrm:rounded-full hrm:object-cover" src={String(value)} alt="" />;
     default:
       if (typeof value === 'object') return Array.isArray(value) ? value.join(', ') : JSON.stringify(value);
       return String(value);

@@ -1,13 +1,26 @@
-export { HRManagement, mergeConfig, resolveModules } from './HRManagement';
+export { HRManagement } from './HRManagement';
 export type { HRManagementProps } from './HRManagement';
-export { presets, preset } from './presets';
-export type { PresetName } from './presets';
-export { createApiClient, ApiError, getByPath, interpolate, extractList } from './api/client';
-export { useHR, DEFAULT_LABELS } from './context';
-export { useRouter, Link } from './router/Router';
-export { DataTable } from './components/DataTable';
-export { ResourceForm } from './components/Form';
-export { Icon } from './components/Icon';
+export { mergeConfig, resolveModules } from './core/config';
+export {
+  presets,
+  preset,
+  allModules,
+  defineModule,
+  crudEndpoints,
+  crudPermissions,
+  options,
+} from './modules';
+export type { PresetName } from './modules';
+export { createApiClient, ApiError, getByPath, interpolate, extractList } from './core/client';
+export { useHR, DEFAULT_LABELS } from './core/context';
+export { can } from './core/permissions';
+export { useRouter, Link } from './core/router';
+export { DataTable } from './ui/DataTable';
+export { ResourceForm } from './ui/Form';
+export { AccessDenied } from './ui/Feedback';
+export { Button, Badge } from './ui/Button';
+export { Page, PageHeader } from './ui/Page';
+export { Icon } from './ui/Icon';
 export * from './types';
 
 import type { HRConfig } from './types';

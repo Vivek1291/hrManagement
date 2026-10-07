@@ -1,23 +1,19 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { createApiClient } from './api/client';
-import { Modal, Spinner, Toasts, type ToastItem } from './components/Feedback';
-import { Icon } from './components/Icon';
-import { DEFAULT_LABELS, HRContextProvider, useHR, type HRContextValue, type ToastKind } from './context';
-import { preset, presets, type PresetName } from './presets';
-import { Link, matchPath, RouterProvider, useRouter } from './router/Router';
-import type { HRConfig, ModuleConfig, ModuleInput, ThemeConfig } from './types';
-import { DashboardView } from './views/DashboardView';
-import { DetailView } from './views/DetailView';
-import { CreateView, EditView } from './views/FormView';
-import { ListView } from './views/ListView';
+import { createApiClient } from './core/client';
+import { mergeConfig, resolveModules, themeVars } from './core/config';
+import { DEFAULT_LABELS, HRContextProvider, type HRContextValue, type ToastKind } from './core/context';
+import { can as canAccess, errorStatus, type AccessRule } from './core/permissions';
+import { RouterProvider } from './core/router';
+import { Layout } from './layout/Layout';
+import type { HRConfig } from './types';
+import { Button } from './ui/Button';
+import { cn } from './ui/cn';
+import { Modal, Spinner, Toasts, type ToastItem } from './ui/Feedback';
 
 export interface HRManagementProps {
   /** The full configuration. Either this or `configUrl` is required. */
   config?: HRConfig;
-  /**
-   * Load the configuration (modules, routes, endpoints…) from your API as JSON.
-   * Fetched with plain `fetch` unless `configFetcher` is given.
-   */
+  /** Load the configuration (modules, routes, endpoints…) from your API as JSON. */
   configUrl?: string;
   /** Request options for loading `configUrl` (e.g. auth headers). */
   configRequestInit?: RequestInit;
@@ -28,185 +24,6 @@ export interface HRManagementProps {
   overrides?: Partial<HRConfig>;
   className?: string;
   style?: React.CSSProperties;
-}
-
-/** Resolve presets and normalise module paths. */
-export function resolveModules(inputs: ModuleInput[]): ModuleConfig[] {
-  return inputs.map((input) => {
-    const m = 'preset' in input && input.preset
-      ? (() => {
-          const { preset: name, ...rest } = input as ModuleInput & { preset: string };
-          if (!(name in presets)) throw new Error(`Unknown HR preset "${name}"`);
-          return preset(name as PresetName, rest);
-        })()
-      : (input as ModuleConfig);
-    const path = '/' + m.path.replace(/^\/+|\/+$/g, '');
-    return { ...m, path };
-  });
-}
-
-export function mergeConfig(base: HRConfig, overrides?: Partial<HRConfig>): HRConfig {
-  if (!overrides) return base;
-  const modules = overrides.modules
-    ? (() => {
-        const byKey = new Map(overrides.modules!.map((m) => [m.key, m]));
-        const merged = base.modules.map((m) => {
-          const o = m.key ? byKey.get(m.key) : undefined;
-          if (!o) return m;
-          byKey.delete(m.key);
-          return { ...m, ...o, endpoints: { ...m.endpoints, ...o.endpoints } } as ModuleInput;
-        });
-        return [...merged, ...byKey.values()];
-      })()
-    : base.modules;
-  return {
-    ...base,
-    ...overrides,
-    api: { ...base.api, ...overrides.api },
-    routing: { ...base.routing, ...overrides.routing },
-    branding: { ...base.branding, ...overrides.branding, theme: { ...base.branding?.theme, ...overrides.branding?.theme } },
-    labels: { ...base.labels, ...overrides.labels },
-    modules,
-  };
-}
-
-function themeVars(theme: ThemeConfig = {}): React.CSSProperties {
-  const map: Record<keyof ThemeConfig, string> = {
-    primary: '--hrm-primary',
-    primaryContrast: '--hrm-primary-contrast',
-    background: '--hrm-bg',
-    surface: '--hrm-surface',
-    text: '--hrm-text',
-    muted: '--hrm-muted',
-    border: '--hrm-border',
-    sidebar: '--hrm-sidebar',
-    sidebarText: '--hrm-sidebar-text',
-    radius: '--hrm-radius',
-    font: '--hrm-font',
-  };
-  const style: Record<string, string> = {};
-  (Object.keys(theme) as (keyof ThemeConfig)[]).forEach((k) => {
-    if (theme[k] && map[k]) style[map[k]] = theme[k]!;
-  });
-  return style as React.CSSProperties;
-}
-
-function canSee(module: ModuleConfig, roles: string[] | undefined) {
-  if (!module.roles?.length) return true;
-  return !!roles?.some((r) => module.roles!.includes(r));
-}
-
-function Routes({ modules, initialPath }: { modules: ModuleConfig[]; initialPath?: string }) {
-  const { path, navigate } = useRouter();
-  const ctx = useHR();
-  const home = initialPath ?? modules.find((m) => !m.hidden)?.path ?? modules[0]?.path;
-
-  useEffect(() => {
-    if ((path === '/' || path === '') && home && home !== '/') navigate(home, { replace: true });
-  }, [path, home, navigate]);
-
-  for (const module of modules) {
-    const type = module.type ?? 'resource';
-    if (type === 'custom') {
-      const params = matchPath(module.path, path) ?? (path.startsWith(module.path + '/') ? { '*': path.slice(module.path.length + 1) } : null);
-      if (params && module.component) {
-        const C = module.component;
-        return <C module={module} params={params} navigate={navigate} api={ctx.api} />;
-      }
-      continue;
-    }
-    if (type === 'dashboard') {
-      if (matchPath(module.path, path)) return <DashboardView key={module.key} module={module} />;
-      continue;
-    }
-    if (matchPath(module.path, path)) return <ListView key={module.key} module={module} />;
-    if (module.endpoints?.create && matchPath(`${module.path}/new`, path)) return <CreateView key={module.key} module={module} />;
-    const edit = matchPath(`${module.path}/:id/edit`, path);
-    if (edit && module.endpoints?.update) return <EditView key={`${module.key}-${edit.id}`} module={module} id={edit.id} />;
-    const detail = matchPath(`${module.path}/:id`, path);
-    if (detail && !module.disableDetail) return <DetailView key={`${module.key}-${detail.id}`} module={module} id={detail.id} />;
-  }
-  if (path === '/' || path === '') return null;
-  return <div className="hrm-empty">{ctx.labels.notFound}</div>;
-}
-
-function Layout({ config, modules }: { config: HRConfig; modules: ModuleConfig[] }) {
-  const { path } = useRouter();
-  const [open, setOpen] = useState(false);
-  const labels = { ...DEFAULT_LABELS, ...config.labels };
-  const branding = config.branding ?? {};
-  const visible = modules.filter((m) => !m.hidden);
-
-  useEffect(() => setOpen(false), [path]);
-
-  const groups: { name?: string; items: ModuleConfig[] }[] = [];
-  visible.forEach((m) => {
-    const g = groups.find((x) => x.name === m.group);
-    if (g) g.items.push(m);
-    else groups.push({ name: m.group, items: [m] });
-  });
-
-  const user = config.user;
-  const initials = (user?.name ?? '')
-    .split(' ')
-    .map((s) => s[0])
-    .join('')
-    .slice(0, 2)
-    .toUpperCase();
-
-  return (
-    <div className={`hrm-layout${open ? ' hrm-nav-open' : ''}`}>
-      <aside className="hrm-sidebar">
-        <div className="hrm-brand">
-          {typeof branding.logo === 'string' ? <img src={branding.logo} alt="" /> : branding.logo}
-          <span>{branding.title ?? 'HR Management'}</span>
-        </div>
-        <nav aria-label="HR navigation">
-          {groups.map((g, i) => (
-            <div key={g.name ?? i} className="hrm-nav-group">
-              {g.name && <div className="hrm-nav-heading">{g.name}</div>}
-              {g.items.map((m) => {
-                const active = path === m.path || path.startsWith(m.path + '/');
-                return (
-                  <Link key={m.key} to={m.path} className={`hrm-nav-link${active ? ' hrm-active' : ''}`} aria-current={active ? 'page' : undefined}>
-                    <Icon name={m.icon} />
-                    <span>{m.label}</span>
-                  </Link>
-                );
-              })}
-            </div>
-          ))}
-        </nav>
-      </aside>
-      <div className="hrm-overlay" onClick={() => setOpen(false)} />
-      <div className="hrm-main">
-        <header className="hrm-header">
-          <button type="button" className="hrm-icon-btn hrm-menu-btn" aria-label="Menu" onClick={() => setOpen((o) => !o)}>
-            <Icon name="menu" />
-          </button>
-          <div className="hrm-header-spacer" />
-          {config.headerExtra}
-          {user?.name && (
-            <div className="hrm-user">
-              {user.avatarUrl ? <img className="hrm-avatar" src={user.avatarUrl} alt="" /> : <span className="hrm-avatar hrm-initials">{initials}</span>}
-              <div className="hrm-user-text">
-                <span>{user.name}</span>
-                {user.email && <small className="hrm-muted">{user.email}</small>}
-              </div>
-            </div>
-          )}
-          {config.onLogout && (
-            <button type="button" className="hrm-icon-btn" aria-label={labels.logout} title={labels.logout} onClick={config.onLogout}>
-              <Icon name="logout" />
-            </button>
-          )}
-        </header>
-        <main className="hrm-content">
-          <Routes modules={modules} initialPath={config.routing?.initialPath} />
-        </main>
-      </div>
-    </div>
-  );
 }
 
 function HRApp({ config, className, style }: { config: HRConfig; className?: string; style?: React.CSSProperties }) {
@@ -226,14 +43,18 @@ function HRApp({ config, className, style }: { config: HRConfig; className?: str
   );
 
   const api = useMemo(() => createApiClient(config.api), [config.api]);
-  const modules = useMemo(
-    () => resolveModules(config.modules).filter((m) => canSee(m, config.user?.roles)),
-    [config.modules, config.user?.roles],
-  );
+  const modules = useMemo(() => resolveModules(config.modules), [config.modules]);
   const labels = useMemo(() => ({ ...DEFAULT_LABELS, ...config.labels }), [config.labels]);
 
-  const value = useMemo<HRContextValue>(
-    () => ({
+  const value = useMemo<HRContextValue>(() => {
+    const can = (rule?: AccessRule) => canAccess(config.user, rule);
+    const notifyError = (error: unknown) => {
+      const status = errorStatus(error);
+      const message =
+        status === 403 ? labels.forbiddenAction : status === 401 ? labels.unauthorizedMessage : error instanceof Error ? error.message : String(error);
+      toast(message, 'error');
+    };
+    return {
       config,
       api,
       labels,
@@ -242,9 +63,10 @@ function HRApp({ config, className, style }: { config: HRConfig; className?: str
       baseVars: { user: config.user ?? {} },
       toast,
       confirm,
-    }),
-    [config, api, labels, toast, confirm],
-  );
+      can,
+      notifyError,
+    };
+  }, [config, api, labels, toast, confirm]);
 
   const closeConfirm = (result: boolean) => {
     confirmState?.resolve(result);
@@ -254,8 +76,8 @@ function HRApp({ config, className, style }: { config: HRConfig; className?: str
   return (
     <HRContextProvider value={value}>
       <RouterProvider config={config.routing} onNavigate={config.onNavigate}>
-        <div className={`hrm-root${className ? ` ${className}` : ''}`} style={{ ...themeVars(config.branding?.theme), ...style }}>
-          <Layout config={config} modules={modules} />
+        <div className={cn('hrm-root', className)} style={{ ...themeVars(config.branding?.theme), ...style }}>
+          <Layout modules={modules} />
           <Toasts items={toasts} onDismiss={(id) => setToasts((t) => t.filter((x) => x.id !== id))} />
           {confirmState && (
             <Modal
@@ -263,12 +85,10 @@ function HRApp({ config, className, style }: { config: HRConfig; className?: str
               onClose={() => closeConfirm(false)}
               footer={
                 <>
-                  <button type="button" className="hrm-btn" onClick={() => closeConfirm(false)}>
-                    {labels.cancel}
-                  </button>
-                  <button type="button" className="hrm-btn hrm-btn-primary" onClick={() => closeConfirm(true)}>
+                  <Button onClick={() => closeConfirm(false)}>{labels.cancel}</Button>
+                  <Button variant="primary" onClick={() => closeConfirm(true)}>
                     {labels.confirm}
-                  </button>
+                  </Button>
                 </>
               }
             >
@@ -298,7 +118,7 @@ export function HRManagement({ config, configUrl, configRequestInit, overrides, 
     setRemote({});
     fetch(configUrl, { headers: { Accept: 'application/json' }, ...configRequestInit })
       .then(async (res) => {
-        if (!res.ok) throw new Error(`Failed to load HR config (${res.status})`);
+        if (!res.ok) throw Object.assign(new Error(`Failed to load HR config (${res.status})`), { status: res.status });
         return res.json();
       })
       .then((json) => !cancelled && setRemote({ config: json }))
@@ -313,13 +133,16 @@ export function HRManagement({ config, configUrl, configRequestInit, overrides, 
   const finalConfig = useMemo(() => (base ? mergeConfig(base, overrides) : undefined), [base, overrides]);
 
   if (configUrl && remote.error) {
+    const status = errorStatus(remote.error);
+    const denied = status === 401 || status === 403;
     return (
       <div className="hrm-root">
-        <div className="hrm-error" role="alert">
-          <span>{remote.error.message}</span>
-          <button type="button" className="hrm-btn hrm-btn-sm" onClick={() => setAttempt((a) => a + 1)}>
-            {DEFAULT_LABELS.retry}
-          </button>
+        <div role="alert" className="hrm:flex hrm:flex-col hrm:items-center hrm:gap-3 hrm:px-6 hrm:py-16 hrm:text-center">
+          {denied && <div className="hrm:text-5xl hrm:font-extrabold">{status}</div>}
+          <p className="hrm:text-muted">
+            {status === 403 ? DEFAULT_LABELS.forbiddenMessage : status === 401 ? DEFAULT_LABELS.unauthorizedMessage : remote.error.message}
+          </p>
+          {!denied && <Button onClick={() => setAttempt((a) => a + 1)}>{DEFAULT_LABELS.retry}</Button>}
         </div>
       </div>
     );

@@ -1,0 +1,50 @@
+import { crudEndpoints, defineModule, options } from './helpers';
+
+export const assets = defineModule({
+  key: 'assets',
+  label: 'Assets',
+  path: '/assets',
+  icon: 'laptop',
+  group: 'Organization',
+  search: true,
+  endpoints: crudEndpoints('/assets'),
+  filters: [{ name: 'status', label: 'Status', type: 'select', placeholder: 'All', options: options('available', 'assigned', 'in_repair', 'retired') }],
+  columns: [
+    { key: 'tag', label: 'Tag', sortable: true },
+    { key: 'name', label: 'Asset', sortable: true },
+    { key: 'type', label: 'Type' },
+    { key: 'assignedToName', label: 'Assigned to' },
+    { key: 'status', label: 'Status', type: 'badge' },
+  ],
+  detailFields: [
+    { key: 'tag', label: 'Tag' },
+    { key: 'name', label: 'Asset' },
+    { key: 'type', label: 'Type' },
+    { key: 'serialNumber', label: 'Serial number' },
+    { key: 'purchaseDate', label: 'Purchased', type: 'date' },
+    { key: 'cost', label: 'Cost', type: 'currency' },
+    { key: 'assignedToName', label: 'Assigned to' },
+    { key: 'status', label: 'Status', type: 'badge' },
+  ],
+  fields: [
+    { name: 'tag', label: 'Asset tag', required: true },
+    { name: 'name', label: 'Name', required: true },
+    { name: 'type', label: 'Type', type: 'select', options: options('laptop', 'monitor', 'phone', 'furniture', 'other') },
+    { name: 'serialNumber', label: 'Serial number' },
+    { name: 'purchaseDate', label: 'Purchase date', type: 'date' },
+    { name: 'cost', label: 'Cost', type: 'number', min: 0 },
+    { name: 'status', label: 'Status', type: 'select', defaultValue: 'available', options: options('available', 'assigned', 'in_repair', 'retired') },
+  ],
+  actions: [
+    {
+      key: 'assign',
+      label: 'Assign',
+      variant: 'primary',
+      endpoint: { path: '/assets/{id}/assign', method: 'POST' },
+      when: { status: 'available' },
+      fields: [{ name: 'employeeId', label: 'Employee', type: 'select', required: true, optionsEndpoint: '/employees' }],
+      successMessage: 'Asset assigned',
+    },
+    { key: 'return', label: 'Return', endpoint: { path: '/assets/{id}/return', method: 'POST' }, when: { status: 'assigned' }, confirm: 'Mark {tag} as returned?', successMessage: 'Asset returned' },
+  ],
+});

@@ -1,13 +1,17 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { getByPath } from '../api/client';
-import { ActionButton, isActionVisible, useActionRunner } from '../components/Actions';
-import { DataTable, Pagination } from '../components/DataTable';
-import { ErrorBox, Spinner } from '../components/Feedback';
-import { FieldInput } from '../components/Form';
-import { Icon } from '../components/Icon';
-import { useAsync, useHR } from '../context';
-import { useRouter } from '../router/Router';
+import { getByPath } from '../core/client';
+import { useAsync, useHR } from '../core/context';
+import { useRouter } from '../core/router';
+import { errorStatus } from '../core/permissions';
 import type { ListResult, ModuleConfig } from '../types';
+import { ActionButton, isActionVisible, useActionRunner } from '../ui/Actions';
+import { Button, cardClass, controlHeight, inputClass } from '../ui/Button';
+import { cn } from '../ui/cn';
+import { DataTable, Pagination } from '../ui/DataTable';
+import { AccessDenied, ErrorState, Spinner } from '../ui/Feedback';
+import { FieldInput } from '../ui/Form';
+import { Icon } from '../ui/Icon';
+import { Page, PageHeader } from '../ui/Page';
 
 function useDebounced<T>(value: T, delay: number): T {
   const [v, setV] = useState(value);
@@ -19,10 +23,11 @@ function useDebounced<T>(value: T, delay: number): T {
 }
 
 export function ListView({ module }: { module: ModuleConfig }) {
-  const { api, baseVars, labels, toast, confirm } = useHR();
+  const { api, baseVars, labels, toast, confirm, can, notifyError } = useHR();
   const { navigate } = useRouter();
   const primaryKey = module.primaryKey ?? 'id';
   const endpoints = module.endpoints ?? {};
+  const perms = module.permissions ?? {};
   const pagination = module.pagination ?? {};
   const mode = pagination.mode ?? 'client';
   const pageSize = pagination.pageSize ?? 10;
@@ -71,10 +76,10 @@ export function ListView({ module }: { module: ModuleConfig }) {
   }, [data, debouncedSearch, mode, page, pageSize, columns, searchCfg]);
 
   const rowActions = (module.actions ?? []).filter((a) => (a.scope ?? 'row') === 'row');
-  const toolbarActions = (module.actions ?? []).filter((a) => a.scope === 'toolbar');
-  const canCreate = !!endpoints.create && !!module.fields?.length;
-  const canEdit = !!endpoints.update && !!module.fields?.length;
-  const canDelete = !!endpoints.delete;
+  const toolbarActions = (module.actions ?? []).filter((a) => a.scope === 'toolbar' && isActionVisible(a, {}, can));
+  const canCreate = !!endpoints.create && !!module.fields?.length && can({ permission: perms.create });
+  const canEdit = !!endpoints.update && !!module.fields?.length && can({ permission: perms.update });
+  const canDelete = !!endpoints.delete && can({ permission: perms.delete });
   const hasRowActions = rowActions.length > 0 || canEdit || canDelete;
 
   const handleDelete = async (row: Record<string, any>) => {
@@ -84,48 +89,53 @@ export function ListView({ module }: { module: ModuleConfig }) {
       toast(labels.deleted, 'success');
       reload();
     } catch (err) {
-      toast(err instanceof Error ? err.message : String(err), 'error');
+      notifyError(err);
     }
   };
 
   const id = (row: Record<string, any>) => encodeURIComponent(String(getByPath(row, primaryKey)));
 
+  // The API refused the list: show the 401/403 screen instead of the page (and its buttons).
+  const status = errorStatus(error);
+  if (status === 401 || status === 403) return <AccessDenied status={status} module={module} message={error!.message} />;
+
   return (
-    <div className="hrm-page">
-      <div className="hrm-page-header">
-        <div>
-          <h2>{module.label}</h2>
-          {module.description && <p className="hrm-muted">{module.description}</p>}
-        </div>
-        <div className="hrm-toolbar-actions">
-          {toolbarActions.map((a) => (
-            <ActionButton key={a.key} action={a} busy={runner.busy === a.key} onClick={() => runner.run(a)} />
-          ))}
-          {canCreate && (
-            <button type="button" className="hrm-btn hrm-btn-primary" onClick={() => navigate(`${module.path}/new`)}>
-              <Icon name="plus" size={14} />
-              <span>{labels.create}</span>
-            </button>
-          )}
-        </div>
-      </div>
+    <Page>
+      <PageHeader
+        title={module.label}
+        description={module.description}
+        actions={
+          <>
+            {toolbarActions.map((a) => (
+              <ActionButton key={a.key} action={a} busy={runner.busy === a.key} onClick={() => runner.run(a)} />
+            ))}
+            {canCreate && (
+              <Button variant="primary" onClick={() => navigate(`${module.path}/new`)}>
+                <Icon name="plus" size={14} />
+                <span>{labels.create}</span>
+              </Button>
+            )}
+          </>
+        }
+      />
 
       {(searchCfg || module.filters?.length) && (
-        <div className="hrm-filters">
+        <div className="hrm:flex hrm:flex-wrap hrm:items-end hrm:gap-3">
           {searchCfg && (
-            <div className="hrm-search">
-              <Icon name="search" size={16} />
+            <div className="hrm:relative hrm:min-w-0 hrm:flex-1 hrm:sm:max-w-xs">
+              <Icon name="search" size={16} className="hrm:pointer-events-none hrm:absolute hrm:top-1/2 hrm:left-3 hrm:-translate-y-1/2 hrm:text-muted" />
               <input
                 type="search"
                 aria-label={labels.search}
                 placeholder={searchCfg.placeholder ?? labels.search}
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
+                className={cn(inputClass, controlHeight, 'hrm:pl-9')}
               />
             </div>
           )}
           {module.filters?.map((f) => (
-            <div key={f.name} className="hrm-filter">
+            <div key={f.name} className="hrm:min-w-40">
               <FieldInput
                 field={{ ...f, required: false }}
                 value={filters[f.name]}
@@ -136,9 +146,9 @@ export function ListView({ module }: { module: ModuleConfig }) {
         </div>
       )}
 
-      <div className="hrm-card">
+      <div className={cardClass}>
         {error ? (
-          <ErrorBox error={error} onRetry={reload} />
+          <ErrorState error={error} onRetry={reload} />
         ) : loading && !data ? (
           <Spinner label={labels.loading} />
         ) : (
@@ -153,7 +163,7 @@ export function ListView({ module }: { module: ModuleConfig }) {
                   ? (row) => (
                       <>
                         {rowActions
-                          .filter((a) => isActionVisible(a, row))
+                          .filter((a) => isActionVisible(a, row, can))
                           .map((a) => (
                             <ActionButton
                               key={a.key}
@@ -164,26 +174,26 @@ export function ListView({ module }: { module: ModuleConfig }) {
                             />
                           ))}
                         {canEdit && (
-                          <button
-                            type="button"
-                            className="hrm-icon-btn"
+                          <Button
+                            variant="ghost"
+                            size="icon"
                             aria-label={labels.edit}
                             title={labels.edit}
                             onClick={() => navigate(`${module.path}/${id(row)}/edit`)}
                           >
                             <Icon name="edit" size={16} />
-                          </button>
+                          </Button>
                         )}
                         {canDelete && (
-                          <button
-                            type="button"
-                            className="hrm-icon-btn hrm-danger"
+                          <Button
+                            variant="ghost-danger"
+                            size="icon"
                             aria-label={labels.delete}
                             title={labels.delete}
                             onClick={() => handleDelete(row)}
                           >
                             <Icon name="trash" size={16} />
-                          </button>
+                          </Button>
                         )}
                       </>
                     )
@@ -195,6 +205,6 @@ export function ListView({ module }: { module: ModuleConfig }) {
         )}
       </div>
       {runner.modal}
-    </div>
+    </Page>
   );
 }
